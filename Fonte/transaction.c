@@ -16,54 +16,73 @@
 #endif
 #include "transaction.h"
 
-void copy_data(rc_insert *data, rc_insert *copy){
+void copy_data(rc_insert *data, rc_insert *copy, int op){
+
+    copy->objName = malloc(sizeof(data->objName));
+    strcpy(copy->objName, data->objName);
+    copy->N = data->N;
+
+    //create index só usa objName e columnName[0], para identificar a coluna referente ao indice
+    if(op == OP_CREATE_INDEX){
+        copy->columnName = malloc(sizeof(char *));
+        copy->columnName[0] = malloc(sizeof(data->columnName[0]));
+        strcpy(copy->columnName[0], data->columnName[0]);
+        //printf("copy->columnName[0]= %s\n", copy->columnName[0]);
+        return;
+    }
 
     //Alocando memória
-    copy->objName = malloc(sizeof(data->objName));
-    copy->columnName = malloc(data->N);
-    copy->values = malloc(data->N);
-    copy->type = malloc(sizeof(data->type));
-    copy->attribute = malloc(sizeof(int));
-    copy->fkTable = malloc(data->N);
-    copy->fkColumn = malloc(data->N);
+    copy->columnName = malloc(sizeof(char *) * data->N);
+    copy->values = malloc(sizeof(char *) * data->N);
+    copy->type = malloc(sizeof(char) * data->N);
+    copy->fkTable = malloc(sizeof(char*) * data->N);
+    copy->fkColumn = malloc(sizeof(char *) * data->N);
+
+    //atributos só usados em criação de tabelas
+    if(op  == OP_CREATE_TABLE){
+        copy->attribute = malloc(sizeof(int) * data->N);
+    }
 
     //Copiando valores
-    copy->N = data->N;
-    copy->attribute = data->attribute;
-    printf("%d\n", *copy->attribute);
-
-    strcpy(copy->objName, data->objName);
-    strcpy(copy->type, data->type);
-
     for(int i=0; i<data->N; i++){
 
+        if(data->type){
+            copy->type[i] = data->type[i];
+            //printf("Copy->type[%d]= %c\n", i, copy->type[i]);
+        }
+        if(data->attribute && op == OP_CREATE_TABLE){
+            copy->attribute[i] = data->attribute[i];
+            //printf("Copy->attribute[%d]= %c\n", i, copy->attribute[i]);
+        }
         if(data->columnName){
             copy->columnName[i] = malloc(sizeof(data->columnName[i]));
             strcpy(copy->columnName[i], data->columnName[i]);
+            //printf("Copy->columnName[%d]= %s\n", i, copy->columnName[i]);
         }
         if(data->values){
             copy->values[i] = malloc(sizeof(data->values[i]));
             strcpy(copy->values[i], data->values[i]);
+            //printf("Copy->values[%d]= %s\n", i, copy->values[i]);
         }
         if(data->fkTable){
             copy->fkTable[i] = malloc(sizeof(data->fkTable[i]));
             strcpy(copy->fkTable[i], data->fkTable[i]);
+            //printf("Copy->fkTable[%d]= %s\n", i, copy->fkTable[i]);
         }
         if(data->fkColumn){
             copy->fkColumn[i] = malloc(sizeof(data->fkColumn[i]));
             strcpy(copy->fkColumn[i], data->fkColumn[i]);
+            //printf("Copy->fkColumn[%d]= %s\n", i, copy->fkColumn[i]);
         }
     }
-
 }
-
 
 void add_op(Pilha *stack_log, int op, rc_insert* data){
 
     log_op *new = malloc(sizeof(log_op));
 
     rc_insert copy;
-    copy_data(data, &copy);
+    copy_data(data, &copy, op);
 
     new->op = op;
     new->data = copy;
