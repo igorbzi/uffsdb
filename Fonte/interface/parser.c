@@ -326,7 +326,7 @@ void rollbackTransaction(int explicit){
         return;
     }
 
-    debug_stack_log(TRANSACTION.STACK_LOG);
+    rollback(TRANSACTION.STACK_LOG);
     free(TRANSACTION.STACK_LOG);
 
     TRANSACTION.t_error = 0;
