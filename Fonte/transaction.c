@@ -140,7 +140,6 @@ void rollback(Pilha* stack_log){
             
             case OP_CREATE_TABLE:
                 //drop table
-                printf("Create Table: %s\n", aux->objName);
                 excluirTabela(aux->objName);
             break;
             
