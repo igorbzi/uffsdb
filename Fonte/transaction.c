@@ -14,6 +14,9 @@
 #ifndef FPARSER
     #include "interface/parser.h"
 #endif
+#ifndef FSQLCOMMANDS
+    #include "sqlcommands.h"
+#endif
 #ifndef FDICTIONARY
     #include "dictionary.h"
 #endif
@@ -141,6 +144,7 @@ void rollback(Pilha* stack_log){
             case OP_CREATE_TABLE:
                 //drop table
                 printf("Create Table: %s\n", aux->objName);
+                excluirTabela(aux->objName);
             break;
             
             case OP_DROP_TABLE:
