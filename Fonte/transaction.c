@@ -14,6 +14,9 @@
 #ifndef FPARSER
     #include "interface/parser.h"
 #endif
+#ifndef FDICTIONARY
+    #include "dictionary.h"
+#endif
 #include "transaction.h"
 
 void copy_data(rc_insert *data, rc_insert *copy, int op){
@@ -125,7 +128,7 @@ void debug_stack_log(Pilha *stack_log){
         }
     }
 }
-
+    
 void rollback(Pilha* stack_log){
 
     while(stack_log->tam > 0){
@@ -151,7 +154,7 @@ void rollback(Pilha* stack_log){
             break;
 
             case OP_CREATE_INDEX:
-                //drop indice
+                drop_index(aux);
                 printf("Create Index: %s\n", aux->objName);
             break;
 
@@ -159,4 +162,105 @@ void rollback(Pilha* stack_log){
 
         }
     }
+}
+
+void drop_index(rc_insert *aux) {
+    char*  nomeTabela = aux->objName;
+    char*  nomeColuna = aux->columnName[0];
+    //desfaz as alterações de inicializa_indice()
+    rb_inicializa_indice(nomeTabela, nomeColuna);
+    //desfaz as alterações de incrementaQtdIndice()
+    rb_incrementaQtdIndice(nomeTabela);
+    //desfaz alterações de adicionaBT()
+    rb_adicionaBT(nomeTabela, aux->columnName[0]);
+
+}
+
+void rb_inicializa_indice(char* nomeTabela, char* nomeColuna){
+    char dir[TAMANHO_NOME_TABELA + TAMANHO_NOME_ARQUIVO + TAMANHO_NOME_CAMPO + TAMANHO_NOME_INDICE];
+    strcpy(dir, connected.db_directory);
+    strcat(dir, nomeTabela);
+    strcat(dir, nomeColuna);
+    strcat(dir, ".dat");
+    remove(dir); // Remove o arquivo de índice criado
+    return;
+}
+
+void rb_incrementaQtdIndice(char* nomeTabela){
+    FILE *dicionario = NULL;
+    char tupla[TAMANHO_NOME_TABELA];
+    memset(tupla, '\0', TAMANHO_NOME_TABELA);
+    int qt = 0, offset = 0;
+
+    char directory[LEN_DB_NAME_IO];
+    strcpy(directory, connected.db_directory);
+    strcat(directory, "fs_object.dat");
+
+    if ((dicionario = fopen(directory,"r+b")) == NULL) {
+        printf("Erro ao abrir dicionário de dados.\n");
+        return;
+    }
+
+    while (fgetc(dicionario) != EOF) {
+        fseek(dicionario, -1, 1);
+
+        fread(tupla, sizeof(char), TAMANHO_NOME_TABELA, dicionario);
+        if (strcmp(tupla, nomeTabela) == 0) {
+            fseek(dicionario, sizeof(int), SEEK_CUR); // Pula o código da tabela
+            fseek(dicionario, sizeof(char) * TAMANHO_NOME_ARQUIVO, SEEK_CUR); // Pula o nome do arquivo da tabela
+            fseek(dicionario, sizeof(int), SEEK_CUR); // Pula a quantidade de campos da tabela
+            offset = ftell(dicionario); // Guarda a posição atual do ponteiro
+            fread(&qt, sizeof(int), 1, dicionario); // Lê a quantidade de índices
+            qt--; // Decrementa
+            fseek(dicionario, offset, SEEK_SET); // Move o ponteiro de volta para a posição original
+            fwrite(&qt, sizeof(int), 1, dicionario); // Escreve o valor decrementado de volta no arquivo
+            fclose(dicionario); // Fecha o arquivo
+            return;
+        }
+        fseek(dicionario, 32, 1);
+    }
+    printf("Erro ao atualizar dicionário de dados.\n");
+
+}
+
+void rb_adicionaBT(char* nomeTabela, char* nomeColuna){
+    int cod;
+    char directory[LEN_DB_NAME_IO];
+    strcpy(directory, connected.db_directory); // Copia o diretório do banco de dados para 'directory'
+    strcat(directory, "fs_schema.dat"); // Adiciona o nome do arquivo ao diretório
+
+    char atrib[TAMANHO_NOME_CAMPO];
+    memset(atrib, '\0', TAMANHO_NOME_CAMPO); // Inicializa 'atrib' com zeros
+
+    FILE *schema = fopen(directory, "r+b"); // Abre o arquivo 'fs_schema.dat'
+    if (schema == NULL) {
+        printf("Erro ao abrir esquema da tabela.\n");
+        return;
+    }
+
+    struct fs_objects objeto = leObjeto(nomeTabela); // Lê os dados do objeto da tabela
+
+    // Percorre o arquivo até o final
+    while (fgetc(schema) != EOF) {
+        fseek(schema, -1, 1); // Move o ponteiro de volta uma posição
+
+        if (fread(&cod, sizeof(int), 1, schema)) { // Lê o código da tabela
+            if (cod == objeto.cod) { // Verifica se o código da tabela corresponde ao código do objeto
+                fread(atrib, sizeof(char), TAMANHO_NOME_CAMPO, schema); // Lê o nome do campo
+                if (strcmp(atrib, nomeColuna) == 0) { // Verifica se o nome do campo corresponde ao nome do atributo
+                    fseek(schema, 5, SEEK_CUR); // Pula 1 byte do tipo e 4 bytes do tamanho
+                    int chave = NPK; // Valor original da chave
+                    fwrite(&chave, sizeof(int), 1, schema); // Escreve o valor original da chave
+                    fclose(schema); // Fecha o arquivo
+                    return;
+                } else {
+                    fseek(schema, 69, SEEK_CUR); // Pula para a próxima entrada (69 bytes)
+                }
+            } else {
+                fseek(schema, 109, 1); // Pula para a próxima entrada (109 bytes)
+            }
+        }
+    }
+
+    printf("Erro ao abrir o esquema da tabela \"%s\".\n", nomeTabela);
 }
