@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #ifndef FMACROS // garante que macros.h não seja reincluída
    #include "macros.h"
 #endif
@@ -134,6 +135,55 @@ void debug_stack_log(Pilha *stack_log){
         }
     }
 }
+
+void rb_drop_table(char *nomeTabela){
+    // Caminhos para os arquivos de backup
+    char backup_object[LEN_DB_NAME_IO * 2];
+    char backup_schema[LEN_DB_NAME_IO * 2];
+    char backup_data[LEN_DB_NAME_IO * 2];
+    char backup_id[LEN_DB_NAME_IO * 2];
+    char original_object[LEN_DB_NAME_IO * 2];
+    char original_schema[LEN_DB_NAME_IO * 2];
+    char original_data[LEN_DB_NAME_IO * 2];
+    char original_id[LEN_DB_NAME_IO * 2];
+
+    snprintf(backup_object, sizeof(backup_object), "%sfs_object_backup_%s.dat", connected.db_directory, nomeTabela);
+    snprintf(backup_schema, sizeof(backup_schema), "%sfs_schema_backup_%s.dat", connected.db_directory, nomeTabela);
+    snprintf(backup_data, sizeof(backup_data), "%s%s_backup.dat", connected.db_directory, nomeTabela);
+    snprintf(backup_id, sizeof(backup_id), "%s%sid_backup.dat", connected.db_directory, nomeTabela);
+
+    snprintf(original_object, sizeof(original_object), "%sfs_object.dat", connected.db_directory);
+    snprintf(original_schema, sizeof(original_schema), "%sfs_schema.dat", connected.db_directory);
+    snprintf(original_data, sizeof(original_data), "%s%s.dat", connected.db_directory, nomeTabela);
+    snprintf(original_id, sizeof(original_id), "%s%sid.dat", connected.db_directory, nomeTabela);
+
+    // Verifica se os arquivos de backup existem
+    if (access(backup_object, F_OK) != -1) {
+        char cmd[LEN_DB_NAME_IO * 4];
+        snprintf(cmd, sizeof(cmd), "cp %s %s", backup_object, original_object);
+        system(cmd);
+        snprintf(cmd, sizeof(cmd), "cp %s %s", backup_schema, original_schema);
+        system(cmd);
+
+        // Verifica se o backup de dados existe antes de restaurar
+        if (access(backup_data, F_OK) != -1){
+            snprintf(cmd, sizeof(cmd), "cp %s %s", backup_data, original_data);
+            system(cmd);
+        }
+
+        // Verifica se o backup do ID existe antes de restaurar
+        if (access(backup_id, F_OK) != -1){
+            snprintf(cmd, sizeof(cmd), "cp %s %s", backup_id, original_id);
+            system(cmd);
+        }
+    }
+
+    // Remove os arquivos de backup após restauração
+    remove(backup_object);
+    remove(backup_schema);
+    remove(backup_data);
+    remove(backup_id);
+}
     
 void rollback(Pilha* stack_log){
 
@@ -151,17 +201,15 @@ void rollback(Pilha* stack_log){
             
             case OP_DROP_TABLE:
                 //voltar a tabela
-                printf("Drop Table: %s\n", aux->objName);
+                rb_drop_table(aux->objName);
             break;
 
             case OP_INSERT:
                 //remover inserção?
-                printf("Insert Table: %s\n", aux->objName);
             break;
 
             case OP_CREATE_INDEX:
                 drop_index(aux);
-                printf("Create Index: %s\n", aux->objName);
             break;
 
             default: break;
@@ -181,6 +229,21 @@ void commit(Pilha *stack_log){
             if(aux->N > 0){
                 insert(aux);
             }
+        }
+        else if(log->op == OP_DROP_TABLE){
+            char backup_object[LEN_DB_NAME_IO * 2];
+            char backup_schema[LEN_DB_NAME_IO * 2];
+            char backup_data[LEN_DB_NAME_IO * 2];
+            char backup_id[LEN_DB_NAME_IO * 2];
+            snprintf(backup_object, sizeof(backup_object), "%sfs_object_backup_%s.dat", connected.db_directory, aux->objName);
+            snprintf(backup_schema, sizeof(backup_schema), "%sfs_schema_backup_%s.dat", connected.db_directory, aux->objName);
+            snprintf(backup_data, sizeof(backup_data), "%s%s_backup.dat", connected.db_directory, aux->objName);
+            snprintf(backup_id, sizeof(backup_id), "%s%sid_backup.dat", connected.db_directory, aux->objName);
+
+            remove(backup_object);
+            remove(backup_schema);
+            remove(backup_data);
+            remove(backup_id);
         }
     }
 }

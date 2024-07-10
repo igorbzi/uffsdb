@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 ////
 #ifndef FBTREE // includes only if this flag is not defined (preventing duplication)
    #include "btree.h"
@@ -29,6 +30,10 @@
 #ifndef FEXPRESSAO
   #include "Expressao.h"
 #endif
+
+//Estrutura para gerenciamento de transações
+extern t_control TRANSACTION;
+
 /* ----------------------------------------------------------------------------------------------
     Objetivo:   Recebe o nome de uma tabela e engloba as funções leObjeto() e leSchema().
     Parametros: Nome da Tabela, Objeto da Tabela e tabela.
@@ -949,6 +954,61 @@ int procuraSchemaArquivo(struct fs_objects objeto){
                 ERRO_LEITURA_DADOS.
    ---------------------------------------------------------------------------------------------*/
 
+void criar_backup(char *nomeTabela){
+    // Caminhos para os arquivos de backup
+    char backup_object[LEN_DB_NAME_IO * 2];
+    char backup_schema[LEN_DB_NAME_IO * 2];
+    char backup_data[LEN_DB_NAME_IO * 2];
+    char backup_id[LEN_DB_NAME_IO * 2];
+    char original_object[LEN_DB_NAME_IO * 2];
+    char original_schema[LEN_DB_NAME_IO * 2];
+    char original_data[LEN_DB_NAME_IO * 2];
+    char original_id[LEN_DB_NAME_IO * 2];
+
+    snprintf(backup_object, sizeof(backup_object), "%sfs_object_backup_%s.dat", connected.db_directory, nomeTabela);
+    snprintf(backup_schema, sizeof(backup_schema), "%sfs_schema_backup_%s.dat", connected.db_directory, nomeTabela);
+    snprintf(backup_data, sizeof(backup_data), "%s%s_backup.dat", connected.db_directory, nomeTabela);
+    snprintf(backup_id, sizeof(backup_id), "%s%sid_backup.dat", connected.db_directory, nomeTabela);
+
+    snprintf(original_object, sizeof(original_object), "%sfs_object.dat", connected.db_directory);
+    snprintf(original_schema, sizeof(original_schema), "%sfs_schema.dat", connected.db_directory);
+    snprintf(original_data, sizeof(original_data), "%s%s.dat", connected.db_directory, nomeTabela);
+    snprintf(original_id, sizeof(original_id), "%s%sid.dat", connected.db_directory, nomeTabela);
+
+    // Verifica se os arquivos de backup já existem
+    if (access(backup_object, F_OK) == -1){
+        // Cria uma cópia de backup usando system()
+        char cmd[LEN_DB_NAME_IO * 4];
+        snprintf(cmd, sizeof(cmd), "cp %s %s", original_object, backup_object);
+        if (system(cmd) != 0) {
+            printf("Erro ao criar a cópia de backup de %s.\n", original_object);
+            return ERRO_ABRIR_ARQUIVO;
+        }
+        snprintf(cmd, sizeof(cmd), "cp %s %s", original_schema, backup_schema);
+        if (system(cmd) != 0) {
+            printf("Erro ao criar a cópia de backup de %s.\n", original_schema);
+            return ERRO_ABRIR_ARQUIVO;
+        }
+
+      // Verifica se existem dados na tabela antes de criar o backup
+        if (access(original_data, F_OK) != -1) {
+            snprintf(cmd, sizeof(cmd), "cp %s %s", original_data, backup_data);
+            if (system(cmd) != 0) {
+                printf("Erro ao criar a cópia de backup de %s.\n", original_data);
+                return ERRO_ABRIR_ARQUIVO;
+            }
+        }
+      // Verifica se existe ID na tabela antes de criar o backup
+        if (access(original_id, F_OK) != -1) {
+            snprintf(cmd, sizeof(cmd), "cp %s %s", original_id, backup_id);
+            if (system(cmd) != 0) {
+                printf("Erro ao criar a cópia de backup de %s.\n", original_id);
+                return ERRO_ABRIR_ARQUIVO;
+            }
+        }
+    }
+}
+
 int excluirTabela(char *nomeTabela) {
     struct fs_objects objeto, objeto1;
     tp_table *esquema, *esquema1;
@@ -961,6 +1021,11 @@ int excluirTabela(char *nomeTabela) {
     if (!verificaNomeTabela(nomeTabela)) {
         printf("ERROR: table \"%s\" does not exist.\n", nomeTabela);
         return ERRO_NOME_TABELA;
+    }
+
+    // Cria backup apenas se estiver em uma transação
+    if(TRANSACTION.t_running){
+      criar_backup(nomeTabela);
     }
 
     strcpylower(str, nomeTabela);
