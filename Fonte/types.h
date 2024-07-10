@@ -9,7 +9,7 @@ struct fs_objects { // Estrutura usada para carregar fs_objects.dat
     int cod;                             // Código da tabela.
     char nArquivo[TAMANHO_NOME_ARQUIVO]; // Nome do arquivo onde estão armazenados os dados da tabela.
     int qtdCampos;                       // Quantidade de campos da tabela.
-    int qtdIndice;						           // Quantidade de índices da tabela.
+    int qtdIndice;						 // Quantidade de índices da tabela.
 };
 
 typedef struct tp_table{ // Estrutura usada para carregar fs_schema.dat
@@ -95,7 +95,6 @@ typedef struct t_control {
 typedef struct log_op {
     int         op;
     rc_insert   data;
-    void*       t_info;
 } log_op;
 
 // Union's utilizados na conversão de variáveis do tipo inteiro e double.

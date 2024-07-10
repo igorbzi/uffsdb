@@ -290,7 +290,7 @@ void commitTransaction(int explicit){
         return;
     }
 
-    debug_stack_log(TRANSACTION.STACK_LOG);
+    commit(TRANSACTION.STACK_LOG);
     free(TRANSACTION.STACK_LOG);
 
     TRANSACTION.t_error = 0;
@@ -371,9 +371,12 @@ int interface() {
                         switch(GLOBAL_PARSER.mode) {
                             case OP_INSERT:
                                 if (GLOBAL_DATA.N > 0) {
-                                    TRANSACTION.t_error = insert(&GLOBAL_DATA);
-                                    if(TRANSACTION.t_running && !TRANSACTION.t_error) {
+                                    if(TRANSACTION.t_running){
                                         add_op(TRANSACTION.STACK_LOG, GLOBAL_PARSER.mode, &GLOBAL_DATA);
+                                        printf("INSERT 0 1\n");
+                                        break;
+                                    } else {
+                                        TRANSACTION.t_error = insert(&GLOBAL_DATA);
                                     }
                                 }
                                 else

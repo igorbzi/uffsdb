@@ -60,7 +60,7 @@ void copy_data(rc_insert *data, rc_insert *copy, int op){
             copy->attribute[i] = data->attribute[i];
             //printf("Copy->attribute[%d]= %c\n", i, copy->attribute[i]);
         }
-        if(data->columnName){
+        if(data->columnName && op != OP_INSERT){
             copy->columnName[i] = malloc(sizeof(data->columnName[i]));
             strcpy(copy->columnName[i], data->columnName[i]);
             //printf("Copy->columnName[%d]= %s\n", i, copy->columnName[i]);
@@ -81,20 +81,23 @@ void copy_data(rc_insert *data, rc_insert *copy, int op){
             //printf("Copy->fkColumn[%d]= %s\n", i, copy->fkColumn[i]);
         }
     }
+
+    if(op == OP_INSERT){
+        copy->columnName = NULL;
+    }
 }
 
-void add_op(Pilha *stack_log, int op, rc_insert* data){
+int add_op(Pilha *stack_log, int op, rc_insert* data){
 
     log_op *new = malloc(sizeof(log_op));
 
     rc_insert copy;
     copy_data(data, &copy, op);
-
     new->op = op;
     new->data = copy;
 
     push(stack_log, new);
-
+    return SUCCESS;
 }
 
 void debug_stack_log(Pilha *stack_log){
@@ -163,6 +166,21 @@ void rollback(Pilha* stack_log){
 
             default: break;
 
+        }
+    }
+}
+
+void commit(Pilha *stack_log){
+
+    while(stack_log->tam > 0){
+
+        log_op *log = pop(stack_log);
+        rc_insert *aux = &log->data;
+
+        if(log->op == OP_INSERT){
+            if(aux->N > 0){
+                insert(aux);
+            }
         }
     }
 }
